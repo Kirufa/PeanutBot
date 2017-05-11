@@ -1,0 +1,8 @@
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\bin\Debug\Test.exe.config
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\bin\Debug\Test.exe
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\bin\Debug\Test.pdb
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\obj\Debug\Test.csprojResolveAssemblyReference.cache
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\obj\Debug\Test.exe
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\obj\Debug\Test.pdb
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\bin\Debug\NAudio.dll
+C:\Users\Yushun\documents\visual studio 2015\Projects\PeanutBot\Test\bin\Debug\NAudio.xml
