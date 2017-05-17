@@ -46,14 +46,25 @@ namespace PeanutBot
                 x.Mode = AudioMode.Outgoing; // Tells the AudioService that we will only be sending audio
             });
 
+         
+
             musicHandler = new Music(client);
             textHandler = new Text(client, musicHandler);
             textHandler.Initialize();
 
             client.ExecuteAndWait(async () =>
             {
+               
                 await client.Connect("MzExNDE1NzQ1MDI2NDU3NjAy.C_MMCQ.lKnK6M3qSHIQJ22repiqF82fgAw", TokenType.Bot);
+                client.SetGame("Phantasy Star Online 2");
+
             });
+
+          
+
+          
+           
+
 
         }
 

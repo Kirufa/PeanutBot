@@ -46,7 +46,7 @@ namespace PeanutBot
             playWorker.CancelAsync();
         }
 
-        public string[] Play(Channel channel)
+        public async Task<string[]> Play(Channel channel)
         {
             Player player;
             bool exist;
@@ -72,8 +72,9 @@ namespace PeanutBot
                 player.Playlist.RemoveAt(0);
             }
 
+            IAudioClient VClient = await client.GetService<AudioService>().Join(channel);
            
-            player.NowPlayingWorker = SendAudio(url, player.VClient);
+            player.NowPlayingWorker = SendAudio(url, VClient);
             player.CompletedStop = false;
             player.NowPlayingWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler((object sender, RunWorkerCompletedEventArgs e) =>
             {               
@@ -87,14 +88,14 @@ namespace PeanutBot
 
 
 
-        public string Stop(Channel channel)
+        public string Stop(User user)
         {
             Player player;
             bool exist;
           
 
             lock (playersLock)
-                exist = players.TryGetValue(channel.Server.Id, out player);
+                exist = players.TryGetValue(user.Server.Id, out player);
 
             if (!exist) return "Bot is not in voice channel.";
 
@@ -104,7 +105,8 @@ namespace PeanutBot
             player.NowPlayingWorker.CancelAsync();
             while (!player.CompletedStop)
                 Thread.Sleep(500);
-            player.VClient.Clear();
+         
+            
             player.NowPlayingWorker = null;
             player.AutoPlay = false;
 
@@ -129,19 +131,20 @@ namespace PeanutBot
             return "";
         }
 
-        public async Task<Player> JoinChannel(Channel channel)
+        public async Task<Player> JoinChannel(User user)
         {
             Player player;
             bool exist;
 
             lock (playersLock)
-                exist = players.TryGetValue(channel.Server.Id, out player);
+                exist = players.TryGetValue(user.Server.Id, out player);
 
             if (!exist)
             {
                 player = new Player();
-                player.VClient = await client.GetService<AudioService>().Join(channel);
-                player.Id = channel.Server.Id;
+                await client.GetService<AudioService>().Join(user.VoiceChannel);
+                player.Id = user.Server.Id;
+                player.ChannelId = user.VoiceChannel.Id;
 
                 lock (playersLock)
                     players.Add(player.Id, player);
@@ -151,8 +154,9 @@ namespace PeanutBot
                 lock (playersLock)
                     players.Remove(player.Id);
 
-                player.VClient = await client.GetService<AudioService>().Join(channel);
-                player.Id = channel.Server.Id;
+                await client.GetService<AudioService>().Join(user.VoiceChannel);
+                player.Id = user.Server.Id;
+                player.ChannelId = user.VoiceChannel.Id;
 
                 lock (playersLock)
                     players.Add(player.Id, player);
@@ -160,20 +164,21 @@ namespace PeanutBot
             return player;
         }
 
-        public async Task<bool> LeaveChannel(Channel channel)
+        public async Task<bool> LeaveChannel(User user)
         {
 
             Player player;
             bool exist;
 
             lock (playersLock)
-                exist = players.TryGetValue(channel.Server.Id, out player);
+                exist = players.TryGetValue(user.Server.Id, out player);
 
             if (exist)
             {
                 // player.stop();
                 players.Remove(player.Id);
-                await player.VClient.Disconnect();
+                await client.GetService<AudioService>().Leave(user.Server);
+                
             }
 
             return exist;
@@ -187,8 +192,13 @@ namespace PeanutBot
             MemoryStream ms = new MemoryStream();
 
             bool running = true;
-           
-            new Thread(delegate (object o)
+            object msLock = new object();
+
+
+            //new Thread(delegate (object o)
+            //{
+
+            try
             {
                 var response = WebRequest.Create(url).GetResponse();
                 using (var stream = response.GetResponseStream())
@@ -197,20 +207,29 @@ namespace PeanutBot
                     int read;
                     while ((read = stream.Read(gettingBuffer, 0, gettingBuffer.Length)) > 0)
                     {
-                        var pos = ms.Position;
-                        ms.Position = ms.Length;
-                        ms.Write(gettingBuffer, 0, read);
-                        ms.Position = pos;
+                        lock (msLock)
+                        {
+                            // var pos = ms.Position;
+                            //   ms.Position = ms.Length;
+                            ms.Write(gettingBuffer, 0, read);
+                            //   ms.Position = pos;
+                        }
                     }
                 }
 
                 running = false;
-                              
-            }).Start();
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }                
+           // }).Start();
 
             //  Pre-buffering some data to allow NAudio to start playing
-            while (ms.Length < 65536 * 10 && running)
-                Thread.Sleep(1000);
+         //   while (ms.Length < 65536 * 10 && running)
+         //       Thread.Sleep(1000);
+
+
 
             ms.Position = 0;
             #endregion
@@ -230,28 +249,38 @@ namespace PeanutBot
                 resampler.ResamplerQuality = 60; // Set the quality of the resampler to 60, the highest quality
                 int blockSize = OutFormat.AverageBytesPerSecond / 50; // Establish the size of our AudioBuffer
                 byte[] buffer = new byte[blockSize];
-                int byteCount;
-                                             
+                int byteCount = 0;
+                 
+                                               
                 worker.DoWork += new DoWorkEventHandler((object sender, DoWorkEventArgs e) =>
                 {
-                    while (!worker.CancellationPending &&
-                           (((byteCount = resampler.Read(buffer, 0, blockSize)) > 0) || running)) // Read audio into our buffer, and keep a loop open while data is present
+                    try
                     {
-                        if (byteCount < blockSize)
+                        do
                         {
-                            // Incomplete Frame
-                            for (int i = byteCount; i < blockSize; i++)
-                                buffer[i] = 0;
-                        }                   
+                            lock (msLock)
+                                byteCount = resampler.Read(buffer, 0, blockSize);   // Read audio into our buffer, and keep a loop open while data is present
 
-                        vClient.Send(buffer, 0, blockSize); // Send the buffer to Discord
-                       
+                            if (byteCount < blockSize)
+                            {
+                                // Incomplete Frame
+                                for (int i = byteCount; i < blockSize; i++)
+                                    buffer[i] = 0;
+                            }
+
+                            vClient.Send(buffer, 0, blockSize); // Send the buffer to Discord
+
+
+                        }
+                        while (!worker.CancellationPending && (byteCount > 0 || running));
+
+                        ms.Close();
+                        ms.Dispose();
                     }
-
-
-                    vClient.Wait();
-                    ms.Close();
-                    ms.Dispose();
+                    catch(Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
 
                 });
 
@@ -273,6 +302,7 @@ namespace PeanutBot
 
             while (!worker.CancellationPending)
             {
+                GC.Collect();
                 Thread.Sleep(1000);
 
                 foreach (KeyValuePair<ulong, Player> pair in players)
@@ -281,11 +311,14 @@ namespace PeanutBot
 
                     if (!player.Playing && player.Playlist.Count > 0 && player.AutoPlay)
                     {
-                        string[] playResult = Play(player.VClient.Channel);
+                        Channel channel = client.GetServer(player.Id).GetChannel(player.ChannelId);
+                                            
+                        string[] playResult = await Play(channel);
 
-                        await player.VClient.Server.FindChannels(defaultTextChannel, ChannelType.Text)
-                                                   .FirstOrDefault()
-                                                   .SendMessage(string.Format(string.Format(":arrow_forward: Now playing {0} .", playResult[0])));
+                        await client.GetServer(player.Id)
+                                    .FindChannels(defaultTextChannel, ChannelType.Text)
+                                    .FirstOrDefault()
+                                    .SendMessage(string.Format(string.Format(":arrow_forward: Now playing {0} .", playResult[0])));
                     }
                     else if (player.Playlist.Count == 0 && player.AutoPlay == true)
                         player.AutoPlay = false;
@@ -305,15 +338,16 @@ namespace PeanutBot
     {
         public string Title;
         public string Url;
-        //public string Length;
+        public string Length;
     }
 
     public class Player
     {
-        public IAudioClient VClient;
+       // public IAudioClient VClient;
         public ulong Id;
         public List<Song> Playlist;
         public object ListLock;
+        public ulong ChannelId;
 
         public bool AutoPlay;
 

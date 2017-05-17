@@ -19,6 +19,8 @@ namespace PeanutBot
         private CommandService tService;
         private bool initialized;
         private Music musicHandler;
+        private LinkedList<ulong> messageList;
+
 
         const string defaultTextChannel = "note";
 
@@ -27,7 +29,7 @@ namespace PeanutBot
             tService = client.GetService<CommandService>();
             this.musicHandler = musicHandler;
 
-            initialized = false;
+            initialized = false;          
         }
 
 
@@ -35,14 +37,65 @@ namespace PeanutBot
         {
             if (initialized) return;
 
+            Array.Sort(commandDescription);
+
             AddDogCommand();
             AddCatCommand();
             AddNoodlesCommand();
             AddImageCommand();
             AddUserUpdateEvent();
             AddMusicCommand();
-
+            AddCleanCommand();
+            AddHelpCommand();
+        
         }
+
+        string[] commandDescription = new string[]
+        {
+            "=~=help                    :顯示這段訊息",
+            "=~=cat                     :召喚貓咪~",
+            "=~=dog                     :召喚狗狗~",
+            "=~=image [keyword]         :召喚主人想召喚的(不保證正確哦)\n"+
+            "                            [keyword]是主人想召喚的東西名稱",
+            "=~=noodles                 :召喚花生最愛的乾麵=~=",
+            "=~=clean [number]          :刪掉花生說過的話QAQ\n"+
+            "                            [number]是要刪除的訊息數量，預設20",
+            "=~=music [argument] [url]  :花生會唱歌哦\n"+
+            "                            [argument] p:播放清單內第一首歌\n"+
+            "                                       q:將[url]加入播放清單\n"+
+            "                                       s:停止目前的歌並停止播放\n"+
+            "                                       j:將花生加入主人的語音頻道\n"+
+            "                                       q:將花生從語音頻道移除\n"
+
+        };
+
+
+
+
+           
+
+
+        private void AddHelpCommand()
+        {
+
+            string helpString =
+                "```css\n[Help]" + Environment.NewLine + Environment.NewLine;
+
+            for (int i = 0; i != commandDescription.Length; ++i)
+                helpString += commandDescription[i] + Environment.NewLine;
+
+            helpString += "```";
+
+
+
+                tService.CreateCommand("~=help").Do(async (e) => 
+            {
+                await e.Channel.SendMessage(helpString);
+            });
+        }
+
+
+
 
         private void AddCatCommand()
         {
@@ -66,6 +119,42 @@ namespace PeanutBot
                 .Parameter("searchkey", ParameterType.Required)
                 .Do(async (e) => { await e.Channel.SendMessage(Picture.GetImage(e.GetArg("searchkey"))); });
         }
+
+        private void AddCleanCommand()
+        {
+
+            tService.CreateCommand("~=clean")
+                .Parameter("amount", ParameterType.Optional)
+                .Do( async (e) =>
+                {
+                    int amount;
+                    string str;
+
+                    if (string.IsNullOrEmpty(str = e.GetArg("amount")) ||
+                        !int.TryParse(str, out amount))
+                        amount = 20;
+                    
+
+                    var messages =
+                    from message in e.Channel.Messages
+                    where message.User.Name == "花生殼"
+                    select message;
+
+                    messages =
+                    from message in messages
+                    orderby message.Timestamp                  
+                    descending                     
+                    select message;
+
+                    if(amount < messages.Count())
+                        messages = messages.Take(amount);
+
+                    await e.Channel.DeleteMessages(messages.ToArray()); 
+                });
+        }
+
+     
+     
 
         private void AddUserUpdateEvent()
         {
@@ -105,29 +194,42 @@ namespace PeanutBot
 
                     case "q":
                         Song song = new Song();
-                        song.Url = GetYoutubeUrl(data);
-                        song.Title = GetYoutubeTitle(data);
+
+                        string[] result = GetYoutubeInfo(data);
+
+                        if (result.Length != 3)
+                        {
+                            Console.WriteLine(result[0]);
+                            await channel.SendMessage(string.Format(":no_entry_sign: Error occured during conversion of url."));
+
+
+                            break;
+                        }
+                        song.Title = result[0];
+                        song.Url = result[1];
+                        song.Length = result[2];
+                      
 
                         string enqueueError = musicHandler.Enqueue(song, e.User.VoiceChannel);
 
                         if (enqueueError == "")
-                            await channel.SendMessage(string.Format(":arrow_heading_down: Add {0} to playing queue.", song.Title));
+                            await channel.SendMessage(string.Format(":arrow_heading_down: Add {0} ({1}) to playing queue.", song.Title,song.Length));
                         else
                             await channel.SendMessage(":no_entry_sign: " + enqueueError);
                         break;
 
                     case "j":
-                       await musicHandler.JoinChannel(e.User.VoiceChannel);
+                        await musicHandler.JoinChannel(e.User);
                         break;
 
                     case "l":
-                        await musicHandler.LeaveChannel(e.User.VoiceChannel);
+                        await musicHandler.LeaveChannel(e.User);
                         break;
 
                     case "s":                     
                         channel = e.Server.FindChannels(defaultTextChannel, ChannelType.Text).FirstOrDefault();
 
-                        string stopError = musicHandler.Stop(e.User.VoiceChannel);
+                        string stopError = musicHandler.Stop(e.User);
 
                         if (stopError == "")
                             await channel.SendMessage(string.Format(":stop_button: Stopped."));
@@ -138,8 +240,8 @@ namespace PeanutBot
                         break;
 
                     case "p":
-                    
-                        string[] playResult = musicHandler.Play(e.User.VoiceChannel);
+
+                        string[] playResult = await musicHandler.Play(e.User.VoiceChannel);
                         string title = playResult[0];
                         string playError = playResult[1];
                     
@@ -164,20 +266,49 @@ namespace PeanutBot
             });
         }
 
-
-        //0: Url
-        //1: Title
+        //0: Title
+        //1: Url
         //2: Length
-      //  private string[] GetYoutubeInfo(string httpUrl)
-      //  {
-      //      Process process = new Process();
-      //      ProcessStartInfo startInfo = new ProcessStartInfo();
-      //      startInfo.FileName = "youtube-dl";
-      //
-      //
-      //
-      //
-      //  }
+        public static string[] GetYoutubeInfo(string httpUrl)
+        {
+            const string title = "--get-title";
+            const string url = "--get-url";
+            const string duration = "--get-duration";
+            const string fileName = "youtube-dl";
+
+
+            Process process = new Process();
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = fileName;
+            startInfo.CreateNoWindow = true;
+            startInfo.UseShellExecute = false;
+            startInfo.RedirectStandardInput = true;
+            startInfo.StandardOutputEncoding = Encoding.GetEncoding(950);
+         
+            string input = url + " " + title + " " + duration + " " + httpUrl;
+
+            startInfo.Arguments = input;
+
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+
+            process.StartInfo = startInfo;
+
+            process.Start();
+
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            string[] result = output.Split(new char[] { '\n', '\r' });
+
+
+            process.WaitForExit();
+
+            if (error == "")
+                return new string[] { result[0], result[1], result[2] };
+            else
+                return new string[] { error };
+
+        }
 
 
         private string GetYoutubeTitle(string httpUrl)
