@@ -47,7 +47,9 @@ namespace PeanutBot
             AddMusicCommand();
             AddCleanCommand();
             AddHelpCommand();
-        
+            AddSayCommand();
+
+
         }
 
         string[] commandDescription = new string[]
@@ -72,7 +74,15 @@ namespace PeanutBot
 
 
 
-           
+        private void AddSayCommand()
+        {
+            tService.CreateCommand("~=say")
+                .Parameter("string",ParameterType.Required)
+                .Do(async (e) =>
+            {
+                await e.Channel.SendTTSMessage(e.GetArg("string"));
+            });
+        }
 
 
         private void AddHelpCommand()

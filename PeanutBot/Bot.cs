@@ -31,13 +31,14 @@ namespace PeanutBot
             builder.LogHandler = new EventHandler<LogMessageEventArgs>(Bot_LogMessage);
             
             client = new DiscordClient(builder);
-           
+          
 
             //chat setting
             client.UsingCommands(input =>
             {
                 input.PrefixChar = '=';
-                input.AllowMentionPrefix = true;         
+                input.AllowMentionPrefix = true;        
+                
             });
 
             //audio setting
@@ -57,14 +58,9 @@ namespace PeanutBot
                
                 await client.Connect("MzExNDE1NzQ1MDI2NDU3NjAy.C_MMCQ.lKnK6M3qSHIQJ22repiqF82fgAw", TokenType.Bot);
                 client.SetGame("Phantasy Star Online 2");
-
+                
             });
-
-          
-
-          
-           
-
+            
 
         }
 
