@@ -59,7 +59,7 @@ namespace PeanutBot
             "                            [keyword]是主人想召喚的東西名稱",
             "=~=noodles                 :召喚花生最愛的乾麵=~=",
             "=~=clean [number]          :刪掉花生說過的話QAQ\n"+
-            "                            [number]是要刪除的訊息數量，預設20",
+            "                            [number]是要刪除的訊息數量，刪除最近的[number]條內花生說過的話，預設50",
             "=~=music [argument] [url]  :花生會唱歌哦\n"+
             "                            [argument] p:播放清單內第一首歌\n"+
             "                                       q:將[url]加入播放清單\n"+
@@ -132,24 +132,17 @@ namespace PeanutBot
 
                     if (string.IsNullOrEmpty(str = e.GetArg("amount")) ||
                         !int.TryParse(str, out amount))
-                        amount = 20;
-                    
+                        amount = 50;
 
-                    var messages =
-                    from message in e.Channel.Messages
-                    where message.User.Name == "花生殼"
-                    select message;
+                    Message[] messages = await e.Channel.DownloadMessages(amount);
+                    List<Message> botMessages = new List<Message>();
 
-                    messages =
-                    from message in messages
-                    orderby message.Timestamp                  
-                    descending                     
-                    select message;
+                    foreach (Message m in messages)
+                        if (m.User.Name == "花生殼")
+                            botMessages.Add(m);
 
-                    if(amount < messages.Count())
-                        messages = messages.Take(amount);
+                    await e.Channel.DeleteMessages(botMessages.ToArray()); 
 
-                    await e.Channel.DeleteMessages(messages.ToArray()); 
                 });
         }
 
