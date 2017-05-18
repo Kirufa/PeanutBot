@@ -277,6 +277,7 @@ namespace PeanutBot
             const string title = "--get-title";
             const string url = "--get-url";
             const string duration = "--get-duration";
+            const string encoding = "--encoding cp950";
             const string fileName = "youtube-dl";
 
 
@@ -286,9 +287,15 @@ namespace PeanutBot
             startInfo.CreateNoWindow = true;
             startInfo.UseShellExecute = false;
             startInfo.RedirectStandardInput = true;
-            startInfo.StandardOutputEncoding = Encoding.GetEncoding(950);
-         
-            string input = url + " " + title + " " + duration + " " + httpUrl;
+
+            #region Set cmd
+
+            #endregion
+
+
+
+
+            string input = encoding + " " + url + " " + title + " " + duration + " " + httpUrl;
 
             startInfo.Arguments = input;
 
@@ -301,13 +308,15 @@ namespace PeanutBot
 
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
+
+                    
             string[] result = output.Split(new char[] { '\n', '\r' });
 
 
             process.WaitForExit();
 
             if (error == "")
-                return new string[] { result[0], result[1], result[2] };
+                return new string[] { result[0], result[result.Length - 3], result[result.Length - 2] };
             else
                 return new string[] { error };
 

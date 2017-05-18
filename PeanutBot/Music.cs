@@ -10,9 +10,9 @@ using System.Threading;
 using Discord;
 using Discord.Audio;
 
-using NAudio.Wave;
 using System.ComponentModel;
 using Discord.Commands;
+using System.Diagnostics;
 
 namespace PeanutBot
 {
@@ -186,110 +186,60 @@ namespace PeanutBot
 
 
         public BackgroundWorker SendAudio(string url, IAudioClient vClient)
-        {
-            #region Get video stream
+        {          
+            var process = Process.Start(new ProcessStartInfo
+            { // FFmpeg requires us to spawn a process and hook into its stdout, so we will create a Process
+                FileName = @"F:\Program Files Portable\ffmpeg\bin\ffmpeg.exe",
+                Arguments = $"-i \"" + url + // Here we provide a list of arguments to feed into FFmpeg. -i means the location of the file/URL it will read from
+                       "\" -f s16le -ar 48000 -ac 2 pipe:1", // Next, we tell it to output 16-bit 48000Hz PCM, over 2 channels, to stdout.
+                UseShellExecute = false,
+                RedirectStandardOutput = true // Capture the stdout of the process
+            });
+            Thread.Sleep(2000); // Sleep for a few seconds to FFmpeg can start processing data.
 
-            MemoryStream ms = new MemoryStream();
-
-            bool running = true;
-            object msLock = new object();
-
-
-            //new Thread(delegate (object o)
-            //{
-
-            try
-            {
-                var response = WebRequest.Create(url).GetResponse();
-                using (var stream = response.GetResponseStream())
-                {
-                    byte[] gettingBuffer = new byte[65536]; // 64KB chunks
-                    int read;
-                    while ((read = stream.Read(gettingBuffer, 0, gettingBuffer.Length)) > 0)
-                    {
-                        lock (msLock)
-                        {
-                            // var pos = ms.Position;
-                            //   ms.Position = ms.Length;
-                            ms.Write(gettingBuffer, 0, read);
-                            //   ms.Position = pos;
-                        }
-                    }
-                }
-
-                running = false;
-            }
-            catch(Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }                
-           // }).Start();
-
-            //  Pre-buffering some data to allow NAudio to start playing
-         //   while (ms.Length < 65536 * 10 && running)
-         //       Thread.Sleep(1000);
-
-
-
-            ms.Position = 0;
-            #endregion
-
-
-
-            var channelCount = client.GetService<AudioService>().Config.Channels; // Get the number of AudioChannels our AudioService has been configured to use.
-            var OutFormat = new WaveFormat(48000, 16, channelCount); // Create a new Output Format, using the spec that Discord will accept, and with the number of channels that our client supports.
 
             BackgroundWorker worker = new BackgroundWorker();
             worker.WorkerSupportsCancellation = true;
 
-            using (var StreamFileReader = new StreamMediaFoundationReader(ms)) // Create a new Disposable MP3FileReader, to read audio from the filePath parameter
-            using (var resampler = new MediaFoundationResampler(StreamFileReader, OutFormat)) // Create a Disposable Resampler, which will convert the read MP3 data to PCM, using our Output Format
+            int blockSize = 3840; // The size of bytes to read per frame; 1920 for mono
+            byte[] buffer = new byte[blockSize];
+            int byteCount;
+
+
+            worker.DoWork += new DoWorkEventHandler((object sender, DoWorkEventArgs e) =>
             {
-
-                resampler.ResamplerQuality = 60; // Set the quality of the resampler to 60, the highest quality
-                int blockSize = OutFormat.AverageBytesPerSecond / 50; // Establish the size of our AudioBuffer
-                byte[] buffer = new byte[blockSize];
-                int byteCount = 0;
-                 
-                                               
-                worker.DoWork += new DoWorkEventHandler((object sender, DoWorkEventArgs e) =>
+                try
                 {
-                    try
+                    while (true) // Loop forever, so data will always be read
                     {
-                        do
-                        {
-                            lock (msLock)
-                                byteCount = resampler.Read(buffer, 0, blockSize);   // Read audio into our buffer, and keep a loop open while data is present
+                        byteCount = process.StandardOutput.BaseStream // Access the underlying MemoryStream from the stdout of FFmpeg
+                                .Read(buffer, 0, blockSize); // Read stdout into the buffer
 
-                            if (byteCount < blockSize)
-                            {
-                                // Incomplete Frame
-                                for (int i = byteCount; i < blockSize; i++)
-                                    buffer[i] = 0;
-                            }
+                        if (byteCount == 0 || worker.CancellationPending) // FFmpeg did not output anything
+                            break; // Break out of the while(true) loop, since there was nothing to read.
 
-                            vClient.Send(buffer, 0, blockSize); // Send the buffer to Discord
-
-
-                        }
-                        while (!worker.CancellationPending && (byteCount > 0 || running));
-
-                        ms.Close();
-                        ms.Dispose();
+                        vClient.Send(buffer, 0, byteCount); // Send our data to Discord
                     }
-                    catch(Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
+                    vClient.Wait(); // Wait for the Voice Client to finish sending data, as ffMPEG may have already finished buffering out a song, and it is unsafe to return now.
+                   
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                finally
+                {
+                    process.Kill();
+                    process.WaitForExit();
+                }
 
-                });
+            });
 
-                worker.RunWorkerAsync();
+            worker.RunWorkerAsync();
 
-              
-              
-            }
-            
+
+
+
             return worker;
         }
     
@@ -353,7 +303,7 @@ namespace PeanutBot
 
         public bool Playing
         {           
-            get { return NowPlayingWorker != null && NowPlayingWorker.IsBusy; }
+            get { return NowPlayingWorker != null && !CompletedStop; }
         }
 
         public BackgroundWorker NowPlayingWorker;

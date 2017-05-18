@@ -37,14 +37,12 @@ F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Discord.Net.Audio.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Discord.Net.Commands.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Discord.Net.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Discord.Net.Modules.dll
-F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\NAudio.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Newtonsoft.Json.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Nito.AsyncEx.Concurrent.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Nito.AsyncEx.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Nito.AsyncEx.Enlightenment.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\RestSharp.dll
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\WebSocket4Net.dll
-F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\NAudio.xml
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Newtonsoft.Json.xml
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Nito.AsyncEx.xml
 F:\GITHUB\PeanutBot\PeanutBot\bin\x86\Debug\Nito.AsyncEx.Concurrent.xml

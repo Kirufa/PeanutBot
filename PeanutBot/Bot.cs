@@ -12,8 +12,6 @@ using Discord;
 using Discord.Commands;
 using Discord.Audio;
 
-using NAudio.Wave;
-
 namespace PeanutBot
 {
     public class Bot
