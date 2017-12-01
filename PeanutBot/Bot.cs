@@ -56,7 +56,7 @@ namespace PeanutBot
             client.ExecuteAndWait(async () =>
             {
                
-                await client.Connect("MzExNDE1NzQ1MDI2NDU3NjAy.C_MMCQ.lKnK6M3qSHIQJ22repiqF82fgAw", TokenType.Bot);
+                await client.Connect("", TokenType.Bot);
                 client.SetGame("Phantasy Star Online 2");
                 
             });
